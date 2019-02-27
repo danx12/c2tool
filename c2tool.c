@@ -192,6 +192,27 @@ static int init_gpio(const char* arg)
 	return fd;
 }
 
+static int init_gpio_dir(const char* arg)
+{
+	int gpio;
+	int fd;
+	char b[256];
+	char *end;
+
+	gpio = strtol(arg, &end, 10);
+	if (*end)
+		return -1;
+
+	snprintf(b, sizeof(b), "%s%d/direction", GPIO_BASE_FILE, gpio);
+	fd = open(b, O_RDWR);
+	if (fd < 0) {
+		fprintf(stderr, "Open %s: %s\n", b, strerror(errno));
+		return -1;
+	}
+
+	return fd;
+}
+
 HIDDEN(dummy1, NULL, NULL);
 HIDDEN(dummy2, NULL, NULL);
 
@@ -223,6 +244,13 @@ int main(int argc, char **argv)
 		usage(0, NULL);
 		return 1;
 	}
+	//Pin direction
+	state.c2if.gpio_c2d_dir = init_gpio_dir(*argv);
+	if (state.c2if.gpio_c2d_dir < 0) {
+		usage(0, NULL);
+		return 1;
+	}
+
 	argc--;
 	argv++;
 
@@ -231,6 +259,8 @@ int main(int argc, char **argv)
 		usage(0, NULL);
 		return 1;
 	}
+	
+
 	argc--;
 	argv++;
 

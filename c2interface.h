@@ -3,6 +3,7 @@
 
 struct c2interface {
 	int gpio_c2d;
+	int gpio_c2d_dir;
 	int gpio_c2ck;
 	int gpio_c2ckstb;
 };

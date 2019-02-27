@@ -66,6 +66,11 @@
 #define C2_FPCTL_RESET		0x02
 #define C2_FPCTL_CORE_RESET	0x04
 
+#define INPUT "in"
+#define OUTPUT "out"
+#define INPUT_SIZE sizeof(INPUT)
+#define OUTPUT_SIZE sizeof(OUTPUT)
+
 #define GPIO_BASE_FILE "/sys/class/gpio/gpio"
 
 /*
@@ -87,6 +92,15 @@ static int c2d_get(struct c2interface *c2if)
 	pread(c2if->gpio_c2d, &buf, 1, 0);
 
 	return buf == '1';
+}
+
+static void c2d_dir(struct c2interface *c2if, const char* dir){
+	pwrite(c2if->gpio_c2d_dir,dir,sizeof(dir),0);
+
+	char buff[3];
+//	pread(c2if->gpio_c2d_dir,&buff,3,0);
+//	printf("c2d set to: %s",buff);
+//	printf("size of dir: %d",sizeof(dir));
 }
 
 static void c2ck_set(struct c2interface *c2if, int state)
@@ -112,11 +126,13 @@ void c2_reset(struct c2interface *c2if)
 	/* To reset the device we have to keep clock line low for at least
 	 * 20us.
 	 */
+	//Configure Arduino for Long pulse
 	c2ck_set(c2if, 0);
-	usleep(25);
+	// usleep(25);
+	c2ck_strobe(c2if);
 	c2ck_set(c2if, 1);
 
-	usleep(1);
+	// usleep(1);
 }
 
 static void c2_write_ar(struct c2interface *c2if, unsigned char addr)
@@ -124,10 +140,14 @@ static void c2_write_ar(struct c2interface *c2if, unsigned char addr)
 	int i;
 
 	/* START field */
-	c2d_set(c2if, 1);
+	//turn off c2d driver
+	c2d_dir(c2if,INPUT);
+	// c2d_set(c2if, 1);
 	c2ck_strobe(c2if);
 
 	/* INS field (11b, LSB first) */
+	//turn onf c2d driver
+	c2d_dir(c2if,OUTPUT);
 	c2d_set(c2if, 1);
 	c2ck_strobe(c2if);
 	c2d_set(c2if, 1);
@@ -142,7 +162,9 @@ static void c2_write_ar(struct c2interface *c2if, unsigned char addr)
 	}
 
 	/* STOP field */
-	c2d_set(c2if, 1);
+	//turn off c2d driver
+	c2d_dir(c2if,INPUT);
+	// c2d_set(c2if, 1);
 	c2ck_strobe(c2if);
 }
 
@@ -151,27 +173,40 @@ static int c2_read_ar(struct c2interface *c2if, unsigned char *addr)
 	int i;
 
 	/* START field */
-	c2d_set(c2if, 1);
+	// c2d_set(c2if, 1);
+	//turn off c2d driver
+	c2d_dir(c2if,INPUT);
 	c2ck_strobe(c2if);
 
 	/* INS field (10b, LSB first) */
+	//turn on c2d driver
+	c2d_dir(c2if,OUTPUT);
 	c2d_set(c2if, 0);
 	c2ck_strobe(c2if);
 	c2d_set(c2if, 1);
 	c2ck_strobe(c2if);
 
+
 	/* ADDRESS field */
-	c2d_set(c2if, 1);
+	// c2d_set(c2if, 1);
+	// turn off c2d driver
+	c2d_dir(c2if,INPUT);
 	*addr = 0;
 	for (i = 0; i < 8; i++) {
-		*addr >>= 1;	/* shift in 8-bit ADDRESS field LSB first */
+		// *addr >>= 1;	/* shift in 8-bit ADDRESS field LSB first */
+		*addr = (unsigned char)*addr >> 1;
 
 		c2ck_strobe(c2if);
-		if (c2d_get(c2if))
+		if (c2d_get(c2if)){
 			*addr |= 0x80;
+		}
+			
 	}
+//	printf("0x%02x\n", *addr);
+
 
 	/* STOP field */
+	c2d_dir(c2if,INPUT);
 	c2ck_strobe(c2if);
 
 	return 0;
@@ -182,10 +217,12 @@ static int c2_write_dr(struct c2interface *c2if, unsigned char data)
 	int timeout, i;
 
 	/* START field */
-	c2d_set(c2if, 1);
+	// c2d_set(c2if, 1);
+	c2d_dir(c2if,INPUT);
 	c2ck_strobe(c2if);
 
 	/* INS field (01b, LSB first) */
+	c2d_dir(c2if,OUTPUT);
 	c2d_set(c2if, 1);
 	c2ck_strobe(c2if);
 	c2d_set(c2if, 0);
@@ -206,7 +243,8 @@ static int c2_write_dr(struct c2interface *c2if, unsigned char data)
 	}
 
 	/* WAIT field */
-	c2d_set(c2if, 1);
+	// c2d_set(c2if, 1);
+	c2d_dir(c2if,INPUT);
 	timeout = 20;
 	do {
 		c2ck_strobe(c2if);
@@ -229,10 +267,12 @@ static int c2_read_dr(struct c2interface *c2if, unsigned char *data)
 	int timeout, i;
 
 	/* START field */
-	c2d_set(c2if, 1);
+	// c2d_set(c2if, 1);
+	c2d_dir(c2if,INPUT);
 	c2ck_strobe(c2if);
 
 	/* INS field (00b, LSB first) */
+	c2d_dir(c2if,OUTPUT);
 	c2d_set(c2if, 0);
 	c2ck_strobe(c2if);
 	c2d_set(c2if, 0);
@@ -245,7 +285,8 @@ static int c2_read_dr(struct c2interface *c2if, unsigned char *data)
 	c2ck_strobe(c2if);
 
 	/* WAIT field */
-	c2d_set(c2if, 1);
+	// c2d_set(c2if, 1);
+	c2d_dir(c2if,INPUT);
 	timeout = 20;
 	do {
 		c2ck_strobe(c2if);
@@ -256,11 +297,13 @@ static int c2_read_dr(struct c2interface *c2if, unsigned char *data)
 	} while (--timeout > 0);
 	if (timeout == 0)
 		return -EIO;
+		
 
 	/* DATA field */
 	*data = 0;
 	for (i = 0; i < 8; i++) {
-		*data >>= 1;	/* shift in 8-bit DATA field LSB first */
+		// *data >>= 1;	/* shift in 8-bit DATA field LSB first */
+		*data = (unsigned char)*data >> 1;
 
 		c2ck_strobe(c2if);
 		if (c2d_get(c2if))
@@ -268,6 +311,7 @@ static int c2_read_dr(struct c2interface *c2if, unsigned char *data)
 	}
 
 	/* STOP field */
+	c2d_dir(c2if,INPUT);
 	c2ck_strobe(c2if);
 
 	return 0;
